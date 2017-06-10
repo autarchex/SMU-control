@@ -1,0 +1,7 @@
+# /etc/udev/rules.d/usbtmc.rules
+# place this file in the above location to add access permissions for USBTMC class devices
+# user needs to be member of 'dialout' group
+
+# USB test and measurement class device rules
+SUBSYSTEM=="usbmisc", KERNEL=="usbtmc[0-9]", GROUP=="dialout", MODE="0666"
+
