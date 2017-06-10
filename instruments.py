@@ -82,4 +82,17 @@ class B2901A(Instrument):
         super().__init__(device)	#call superclass constructor which gets us connected
         self.description = "B2901 SMU"
 
+    def setFixedDCVmode(self):
+        """Set to DC output mode."""
+        self.port.write(":FUNC DC")
+        self.port.write(":SOUR:FUNC:MODE:VOLT")
+        self.port.write(":SOUR:VOLT:MODE:FIX")
 
+    def setSourceVoltAutorange(on):
+        """If on==True, turns on autorange for voltage output, else turns off"""
+        if(on):
+           onval = 1
+        else:
+           onval = 0 
+        self.port.write(":SOUR:VOLT:RANG:AUTO " + onval)
+     
