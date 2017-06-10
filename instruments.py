@@ -50,13 +50,12 @@ class usbtmc:
         self.write("*RST")
 
 
-
-class B2901A:
-    """This class controls a Keysight (Agilent) B2901A SMU"""
+class Instrument:
+    """Template class for generic instruments.  Other specific instruments in this module inherit from this."""
     def __init__(self, device):
         print("Connecting to a Keysight B2901A SMU at ", device)
         self.port = usbtmc(device)
-        print("Requesting device to identify itself...")
+        print("Requesting device to identify...")
         self.name = self.port.identify()
         print("Device replied: \"" + self.name + "\"")
 
@@ -75,3 +74,12 @@ class B2901A:
     def reset(self):
         """Reset the instrument."""
         self.port.reset()
+
+
+
+class B2901A(Instrument):
+    def __init__(self, device):
+        super().__init__(device)	#call superclass constructor which gets us connected
+        self.description = "B2901 SMU"
+
+
