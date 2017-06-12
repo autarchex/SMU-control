@@ -1,0 +1,12 @@
+TODO:
+
+basic SMU operations
+------
+reset
+source->mode->volts
+source->volts-> set voltage
+source->limit-> set current limit
+measure->mode->amps
+trigger->timer
+trigger-> bunch of other stuff
+
