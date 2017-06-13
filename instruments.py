@@ -52,12 +52,16 @@ class usbtmc:
 
 class Instrument:
     """Template class for generic instruments.  Other specific instruments in this module inherit from this."""
-    def __init__(self, device):
-        print("Connecting to a Keysight B2901A SMU at ", device)
+    def __init__(self, device, description="USB TMC instrument"):
+        print("Connecting to " + description + " at " + device)
         self.port = usbtmc(device)
         print("Requesting device to identify...")
-        self.name = self.port.identify()
-        print("Device replied: \"" + self.name + "\"")
+        self.idn = self.port.identify()
+        print("Device replied: \"" + self.idn + "\"")
+        #extract manufacturer, model number, serial number, and revision number
+        self.mfr, self.model, self.sn, self.version = self.idn.split(",")
+        if self.expectedModel not in self.model:
+            print("Warning: device returned model \'" + self.model + "\', expected \'" + self.expectedModel + "\'")
 
     def close(self):
         print("Disconnecting from instrument.")
@@ -79,20 +83,75 @@ class Instrument:
 
 class B2901A(Instrument):
     def __init__(self, device):
-        super().__init__(device)	#call superclass constructor which gets us connected
-        self.description = "B2901 SMU"
+        self.description = "Keysight B2901 SMU"
+        self.expectedMfr = "Keysight Technologies"
+        self.expectedModel = "B2901A"
+        #call superclass constructor, which connects and gathers some info
+        super().__init__(device, self.description)
 
-    def setFixedDCVmode(self):
-        """Set to DC output mode."""
-        self.port.write(":FUNC DC")
-        self.port.write(":SOUR:FUNC:MODE:VOLT")
-        self.port.write(":SOUR:VOLT:MODE:FIX")
+    def setSourceFunctionVoltage():
+        self.write(":FUNC:MODE VOLT")
 
-    def setSourceVoltAutorange(on):
-        """If on==True, turns on autorange for voltage output, else turns off"""
-        if(on):
-           onval = 1
+    def setSourceFunctionCurrent():
+        self.write(":FUNC:MODE CURR")
+
+    def setVoltage(v):
+        """Takes numerical argument."""
+        self.write(":VOLT " + str(v))
+
+    def setCurrent(a):
+        """Takes numerical argument."""
+        self.write(":CURR " + str(a))
+
+    def setOutputShapeDC():
+        self.write(":FUNC DC")
+
+    def setOutputShapePulsed():
+        self.write(":FUNC PULS")
+
+    def setVoltageSweepList(vsl):
+        """vsl is list of voltages for sweep"""
+        s = ""
+        for v in vsl:
+            s.append(str(v) + ",")  #create comma separated value string
+        s = s[:-1]      #remove final command
+        self.write(":LIST:VOLT " + s)
+
+    def setCurrentComplianceLevel(a):
+        self.write(":SENS:CURR:PROT " + str(a))
+
+    def setVoltageProtectionLevel(v):
+        self.write(":SENS:VOLT:PROT " + str(v))
+
+    def enableOutput(en=True):
+        if en:
+            self.write(":OUTP ON")
         else:
-           onval = 0 
-        self.port.write(":SOUR:VOLT:RANG:AUTO " + onval)
-     
+            self.write(":OUTP OFF")
+
+    def enableRemoteSensing(en=True):
+        if en:
+            self.write(":SENS:REM ON")
+        else:
+            self.write(":SENS:REM OFF")
+
+    def enableContinuousTrigger(en=True):
+        if en:
+            self.write(":FUNC:TRIG:CONT ON")
+        else:
+            self.write(":FUNC:TRIG:CONT OFF")
+
+    def enableSourceVoltAutorange(en=True):
+        if en:
+            self.write(":SOUR:VOLT:RANG:AUTO ON")
+        else:
+            self.write(":SOUR:VOLT:RANG:AUTO OFF")
+
+
+class MSO2102A(Instrument):
+    def __init__(self, device):
+        self.description = "Rigol MSO2102A Oscilloscope"
+        self.expectedMfr = "RIGOL TECHNOLOGIES"
+        self.expectedModel = "MSO2102A"
+        #call superclass constructor, which connects and gathers some info
+        super().__init__(device, self.description)
