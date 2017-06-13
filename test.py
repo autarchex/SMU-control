@@ -27,3 +27,4 @@ if found:
     smu.enableContinuousTrigger(True)
     smu.enableSourceVoltAutorange(True)
     smu.setVoltage(11.275)
+    smu.enableOutput(True)

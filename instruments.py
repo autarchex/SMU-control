@@ -10,7 +10,7 @@ class usbtmc:
     a "/dev/usbtmc0" or similar entry present in /dev directory."""
 
     def __init__(self, device):
-        """Argument 'device' (string) is path to a virtual file in /dev, typically /dev/usbtmc0 or /dev/usbtmc1"""
+        """Argument 'device' (string) is path to an entry in /dev, typically /dev/usbtmc0 or /dev/usbtmc1"""
         self.device = device
         self.dfile = os.open(device, os.O_RDWR)
 
@@ -38,17 +38,6 @@ class usbtmc:
         """writes without any conversion, so sends a byte vector.  Will fail if given a string."""
         os.write(self.dfile, command)
 
-    def ask(self, command, length = 4000):
-        """combined write-read for commands that end in '?', for convenience."""
-        self.write(command)
-        return self.read(length)
-
-    def identify(self):
-        return self.ask("*IDN?", 300)
-
-    def reset(self):
-        self.write("*RST")
-
 
 class Instrument:
     """Template class for generic instruments.  Other specific instruments in this module inherit from this."""
@@ -56,7 +45,7 @@ class Instrument:
         print("Connecting to " + description + " at " + device)
         self.port = usbtmc(device)
         print("Requesting device to identify...")
-        self.idn = self.port.identify()
+        self.idn = self.identify()
         print("Device replied: \"" + self.idn + "\"")
         #extract manufacturer, model number, serial number, and revision number
         self.mfr, self.model, self.sn, self.version = self.idn.split(",")
@@ -75,10 +64,16 @@ class Instrument:
         """Read data from the instrument."""
         return self.port.read(length)
 
-    def reset(self):
-        """Reset the instrument."""
-        self.port.reset()
+    def ask(self, command, length = 4000):
+        """combined write-read for commands that end in '?', for convenience."""
+        self.write(command)
+        return self.read(length)
 
+    def identify(self):
+        return self.ask("*IDN?", 300)
+
+    def reset(self):
+        self.write("*RST")
 
 
 class B2901A(Instrument):
@@ -89,27 +84,27 @@ class B2901A(Instrument):
         #call superclass constructor, which connects and gathers some info
         super().__init__(device, self.description)
 
-    def setSourceFunctionVoltage():
+    def setSourceFunctionVoltage(self):
         self.write(":FUNC:MODE VOLT")
 
-    def setSourceFunctionCurrent():
+    def setSourceFunctionCurrent(self):
         self.write(":FUNC:MODE CURR")
 
-    def setVoltage(v):
+    def setVoltage(self,v):
         """Takes numerical argument."""
         self.write(":VOLT " + str(v))
 
-    def setCurrent(a):
+    def setCurrent(self,a):
         """Takes numerical argument."""
         self.write(":CURR " + str(a))
 
-    def setOutputShapeDC():
+    def setOutputShapeDC(self):
         self.write(":FUNC DC")
 
-    def setOutputShapePulsed():
+    def setOutputShapePulsed(self):
         self.write(":FUNC PULS")
 
-    def setVoltageSweepList(vsl):
+    def setVoltageSweepList(self,vsl):
         """vsl is list of voltages for sweep"""
         s = ""
         for v in vsl:
@@ -117,35 +112,40 @@ class B2901A(Instrument):
         s = s[:-1]      #remove final command
         self.write(":LIST:VOLT " + s)
 
-    def setCurrentComplianceLevel(a):
+    def setCurrentComplianceLevel(self,a):
         self.write(":SENS:CURR:PROT " + str(a))
 
-    def setVoltageProtectionLevel(v):
+    def setVoltageProtectionLevel(self,v):
         self.write(":SENS:VOLT:PROT " + str(v))
 
-    def enableOutput(en=True):
+    def enableOutput(self,en=True):
         if en:
             self.write(":OUTP ON")
         else:
             self.write(":OUTP OFF")
 
-    def enableRemoteSensing(en=True):
+    def enableRemoteSensing(self,en=True):
         if en:
             self.write(":SENS:REM ON")
         else:
             self.write(":SENS:REM OFF")
 
-    def enableContinuousTrigger(en=True):
+    def enableContinuousTrigger(self,en=True):
         if en:
             self.write(":FUNC:TRIG:CONT ON")
         else:
             self.write(":FUNC:TRIG:CONT OFF")
 
-    def enableSourceVoltAutorange(en=True):
+    def enableSourceVoltAutorange(self,en=True):
         if en:
             self.write(":SOUR:VOLT:RANG:AUTO ON")
         else:
             self.write(":SOUR:VOLT:RANG:AUTO OFF")
+
+    def measure():
+        """Perform a spot measurement using current parameters, returns a float."""
+        return float(self.ask(":MEAS?"))
+
 
 
 class MSO2102A(Instrument):
