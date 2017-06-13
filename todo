@@ -2,11 +2,53 @@ TODO:
 
 basic SMU operations
 ------
-reset
-source->mode->volts
-source->volts-> set voltage
+Set Source Voltage immediately to value
+:VOLT value
+
+Set Source To Voltage Output Mode (default VOLT)
+:FUNC:MODE VOLT
+:FUNC:MODE CURR
+
+Set Output shape (default DC)
+:FUNC DC
+:FUNC PULS
+
+Enable or Disable continuous trigger
+:FUNC:TRIG:CONT ON
+:FUNC:TRIG:CONT OFF
+
+Set sweep list for output, where list is comma separated list of values
+:LIST:VOLT list
+
+Set protection/compliance level
+:SENS:CURR:PROT value
+:SENS:VOLT:PROT value
+
+Set Source Output Range to auto (default)
+:VOLT:RANG:AUTO ON
+
+Set Source Voltage Mode (default is FIXed)
+:VOLT:MODE FIX
+
+Set Current Limit
 source->limit-> set current limit
+
+Set Measurement mode: current (default)
+:SENSE:FUNC:CURR
+
+Set Measurement autorange on (default ON)
+:SENS:CURR:RANG:AUTO ON
+
+Set Measurement Mode to Current
 measure->mode->amps
+
+Enable remote sensing (default OFF)
+:SENS:REM ON
+
+Enable (or disable) source output (default OFF)
+:OUTP ON
+:OUTP OFF
+
 trigger->timer
 trigger-> bunch of other stuff
 
