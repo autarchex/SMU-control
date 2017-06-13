@@ -30,17 +30,11 @@ Set Source Output Range to auto (default)
 Set Source Voltage Mode (default is FIXed)
 :VOLT:MODE FIX
 
-Set Current Limit
-source->limit-> set current limit
-
 Set Measurement mode: current (default)
 :SENSE:FUNC:CURR
 
 Set Measurement autorange on (default ON)
 :SENS:CURR:RANG:AUTO ON
-
-Set Measurement Mode to Current
-measure->mode->amps
 
 Enable remote sensing (default OFF)
 :SENS:REM ON
@@ -49,6 +43,4 @@ Enable (or disable) source output (default OFF)
 :OUTP ON
 :OUTP OFF
 
-trigger->timer
-trigger-> bunch of other stuff
 
