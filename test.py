@@ -20,11 +20,26 @@ if found:
     smu = B2901A(devicepath)
     smu.reset()
 
-    smu.setSourceFunctionVoltage()
-    smu.setOutputShapeDC()
+    smu.setSourceFunctionToVoltage()
+    smu.setOutputShapeToDC()
+    smu.setVoltageModeToFixed()
     smu.setCurrentComplianceLevel(0.01)
+
     smu.enableRemoteSensing(True)
-    smu.enableContinuousTrigger(True)
-    smu.enableSourceVoltAutorange(True)
+    #smu.enableContinuousTrigger(True)
+    #smu.enableSourceVoltAutorange(True)
+
     smu.setVoltage(11.275)
     smu.enableOutput(True)
+
+    smu.setTriggerAcquisitionDelay(0.001)
+    smu.setTriggerTransientDelay(0)
+    smu.setArmCount(1)
+    smu.setArmImmediate()
+    smu.setArmDelay(0)
+
+    smu.setTriggerSourceToTimer()
+    smu.setTriggerCount(100)
+    smu.setTriggerTimerInterval(0.1)
+
+    smu.initiate()

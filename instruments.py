@@ -77,6 +77,10 @@ class Instrument:
 
 
 class B2901A(Instrument):
+    """This class represents and controls a Keysight B2901A SMU.  For operating
+    details of this instrument, refer to Keysight document B2910-90030, titled
+    "Keysight B2900 SCPI Command Reference"."""
+
     def __init__(self, device):
         self.description = "Keysight B2901 SMU"
         self.expectedMfr = "Keysight Technologies"
@@ -84,27 +88,33 @@ class B2901A(Instrument):
         #call superclass constructor, which connects and gathers some info
         super().__init__(device, self.description)
 
-    def setSourceFunctionVoltage(self):
+    def setSourceFunctionToVoltage(self):
         self.write(":FUNC:MODE VOLT")
 
-    def setSourceFunctionCurrent(self):
+    def setSourceFunctionToCurrent(self):
         self.write(":FUNC:MODE CURR")
 
     def setVoltage(self,v):
-        """Takes numerical argument."""
+        """Takes float argument."""
         self.write(":VOLT " + str(v))
 
     def setCurrent(self,a):
-        """Takes numerical argument."""
+        """Takes float argument."""
         self.write(":CURR " + str(a))
 
-    def setOutputShapeDC(self):
+    def setOutputShapeToDC(self):
         self.write(":FUNC DC")
 
-    def setOutputShapePulsed(self):
+    def setOutputShapeToPulse(self):
         self.write(":FUNC PULS")
 
-    def setVoltageSweepList(self,vsl):
+    def setVoltageModeToList(self):
+        self.write(":SOURCE:VOLT:MODE LIST")
+
+    def setVoltageModeToFixed(self):
+        self.write(":SOURCE:VOLT:MODE FIX")
+
+    def setVoltageList(self,vsl):
         """vsl is list of voltages for sweep"""
         s = ""
         for v in vsl:
@@ -142,9 +152,39 @@ class B2901A(Instrument):
         else:
             self.write(":SOUR:VOLT:RANG:AUTO OFF")
 
-    def measure():
+    def measure(self):
         """Perform a spot measurement using current parameters, returns a float."""
         return float(self.ask(":MEAS?"))
+
+    def initiate(self):
+        """Initiates a source/measure operation already set up"""
+        self.write(":INIT")
+
+    def setTriggerAcquisitionDelay(self, delay):
+        """set delay between trigger and acquisition"""
+        self.write(":TRIG:ACQ:DEL " + str(delay))
+
+    def setTriggerTransientDelay(self, delay):
+        """set delay between trigger and transient (output change)"""
+        self.write(":TRIG:TRAN:DEL " + str(delay))
+
+    def setArmCount(self, count):
+        self.write(":ARM:COUNT " + str(count))
+
+    def setArmImmediate(self):
+        self.write(":ARM:IMM")
+
+    def setArmDelay(self, delay):
+        self.write(":ARM:DELAY " + str(delay))
+
+    def setTriggerSourceToTimer(self):
+        self.write("TRIG:SOURCE TIMER")
+
+    def setTriggerCount(self, count):
+        self.write("TRIG:COUNT " + str(count))
+
+    def setTriggerTimerInterval(self, interval):
+        self.write("TRIG:TIMER " + str(interval))
 
 
 
