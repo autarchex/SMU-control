@@ -3,8 +3,8 @@ from os import listdir
 
 """Test script to verify that I have communication with SMU working"""
 
-voltage_list = [1,2,3,4,5,6,7,8,9,10]
-tstep = 0.1
+voltage_list = list(range(40))
+tstep = 1
 
 devices = listdir("/dev/")           #get listing of contents of /dev directory
 usbtmcdevices = list(s for s in devices if "usbtmc" in s)  #list all usbtmc* filenames in /dev

@@ -88,7 +88,7 @@ class B2901A(Instrument):
         self.expectedModel = "B2901A"
         #call superclass constructor, which connects and gathers some info
         super().__init__(device, self.description)
-        self.monitor()      #start monitoring for operation-complete state
+        #self.monitor()      #start monitoring for operation-complete state
 
     def monitor(self):
         """Begin monitoring OPC (operation complete) bit.  Must be called before
@@ -246,21 +246,21 @@ class B2901A(Instrument):
         self.enableOutput(False)					#disable source output
         vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
         ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
-        vmeas = float(vreply.split(','))		#split reply on commas and convert to floating point values
-        imeas = float(ireply.split(','))
+        vmeas = [float(s) for s in vreply.split(',')]		#split reply on commas and convert to floating point values
+        imeas = [float(s) for s in ireply.split(',')]
         return [vmeas, imeas]
 
     def performConstVoltageMeasurement(self, v, points, tstep, compliance=0.1):
         """Performs a sequence of current measurements under constant voltage.
-	    v is voltage to drive; points is number of points to acquire; tstep is
-		the time interval (seconds) between points; compliance is current
-		compliance limit (amps). Returns two lists: [voltages, currents]."""
+	v is voltage to drive; points is number of points to acquire; tstep is
+	the time interval (seconds) between points; compliance is current
+	compliance limit (amps). Returns two lists: [voltages, currents]."""
         self.reset()
         self.setSourceFunctionToVoltage()		#output voltage
         self.enableSourceVoltAutorange(True)		#enable voltage autoranging
         self.setVoltageModeToFixed()				#using fixed output mode
         self.setVoltage(v)							#set output voltage
-		self.enableContinuousTrigger(True)			#continuous trigger the source, so it stays constant
+       	self.enableContinuousTrigger(True)			#continuous trigger the source, so it stays constant
         self.setSenseFunctionToCurrent()			#sensing current
         self.enableSenseCurrentAutorange(True)	#enable current autoranging
         self.setCurrentComplianceLevel(compliance)		#set current compliance
@@ -275,8 +275,8 @@ class B2901A(Instrument):
         self.enableOutput(False)					#disable source output
         vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
         ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
-        vmeas = float(vreply.split(','))		#split reply on commas and convert to floating point values
-        imeas = float(ireply.split(','))
+        vmeas = [float(s) for s in vreply.split(',')]		#split reply on commas and convert to floating point values
+        imeas = [float(s) for s in ireply.split(',')]
         return [vmeas, imeas]
 
 class MSO2102A(Instrument):
