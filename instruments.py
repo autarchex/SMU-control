@@ -249,7 +249,34 @@ class B2901A(Instrument):
         imeas = float(ireply.split(','))
         return [vmeas, imeas]
 
-
+    def performConstVoltageMeasurement(self, v, points, tstep, compliance=0.1):
+        """Performs a sequence of current measurements under constant voltage.
+	    v is voltage to drive; points is number of points to acquire; tstep is
+		the time interval (seconds) between points; compliance is current
+		compliance limit (amps). Returns two lists: [voltages, currents]."""
+        self.reset()
+        self.setSourceFunctionToVoltage()		#output voltage
+        self.enableSourceVoltAutorange(True)		#enable voltage autoranging
+        self.setVoltageModeToFixed()				#using fixed output mode
+        self.setVoltage(v)							#set output voltage
+		self.enableContinuousTrigger(True)			#continuous trigger the source, so it stays constant
+        self.setSenseFunctionToCurrent()			#sensing current
+        self.enableSenseCurrentAutorange(True)	#enable current autoranging
+        self.setCurrentComplianceLevel(compliance)		#set current compliance
+        self.setTriggerSourceToTimer()			#use timer as trigger source
+        self.setTriggerTimerInterval(tstep)		#program the timer step
+        self.setTriggerCount(points)			#number of data points to collect
+        self.setTriggerAcquisitionDelay(tstep/10)
+        self.enableOutput(True)					#turn on output
+        self.initiate()							#begin measurement operation
+        while(self.busy()):      #polling loop, wait for operation completion
+            pass
+        self.enableOutput(False)					#disable source output
+        vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
+        ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
+        vmeas = float(vreply.split(','))		#split reply on commas and convert to floating point values
+        imeas = float(ireply.split(','))
+        return [vmeas, imeas]
 
 class MSO2102A(Instrument):
     def __init__(self, device):
