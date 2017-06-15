@@ -87,7 +87,7 @@ class B2901A(Instrument):
         self.expectedModel = "B2901A"
         #call superclass constructor, which connects and gathers some info
         super().__init__(device, self.description)
-        self.monitor()      #start monitoring for operation-complete
+        self.monitor()      #start monitoring for operation-complete state
 
     def monitor(self):
         """Begin monitoring OPC (operation complete) bit.  Must be called before
@@ -202,8 +202,8 @@ class B2901A(Instrument):
     def setTriggerTimerInterval(self, interval):
         self.write("TRIG:TIMER " + str(interval))
 
-	#Other
-	#------------------------
+    #Other
+    #------------------------
     def enableOutput(self, en=True):
         if en:
             self.write(":OUTP ON")
@@ -218,37 +218,36 @@ class B2901A(Instrument):
         """Initiates a source/measure operation already set up"""
         self.write(":INIT")
 
-	#Combination functions which make life easier
-	#--------------------------
-	def performVoltageListSweep(self, vlist, tstep, compliance=0.1):
-		"""Performs a list sweep, outputting voltage and measuring current.
-		vlist is a list of voltages. tstep is the time step (seconds).
-		compliance is current compliance limit (amps). Returns a list of two
-		lists: [voltages, currents]."""
-		points = len(vlist)
-		self.reset()
-	    self.setSourceFunctionToVoltage()		#output voltage
-	    self.enableSourceVoltAutorange(True)		#enable voltage autoranging
-	    self.setVoltageModeToList()				#using list sweep mode
-	    self.setVoltageList(vlist)				#load requested sweep list
-	    self.setSenseFunctionToCurrent()			#sensing current
-	    self.enableSenseCurrentAutorange(True)	#enable current autoranging
-	    self.setCurrentComplianceLevel(compliance)		#set current compliance
-	    self.setTriggerSourceToTimer()			#use timer as trigger source
-	    self.setTriggerTimerInterval(tstep)		#program the timer step
-	    self.setTriggerCount(points)			#number of data points to collect
-	    self.setTriggerAcquisitionDelay(tstep/10)
-
-	    self.enableOutput(True)					#turn on output
-	    self.initiate()							#begin measurement operation
-	    while(self.busy()):      #polling loop, wait for operation completion
-	        pass
-	    self.enableOutput(False)					#disable source output
-		vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
-	    ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
-		vmeas = float(vreply.split(','))		#split reply on commas and convert to floating point values
-		imeas = float(ireply.split(','))
-		return [vmeas, imeas]
+    #Combination functions which make life easier
+    #--------------------------
+    def performVoltageListSweep(self, vlist, tstep, compliance=0.1):
+        """Performs a list sweep, outputting voltage and measuring current.
+        vlist is a list of voltages. tstep is the time step (seconds).
+        compliance is current compliance limit (amps). Returns a list of two
+        lists: [voltages, currents]."""
+        points = len(vlist)
+        self.reset()
+        self.setSourceFunctionToVoltage()		#output voltage
+        self.enableSourceVoltAutorange(True)		#enable voltage autoranging
+        self.setVoltageModeToList()				#using list sweep mode
+        self.setVoltageList(vlist)				#load requested sweep list
+        self.setSenseFunctionToCurrent()			#sensing current
+        self.enableSenseCurrentAutorange(True)	#enable current autoranging
+        self.setCurrentComplianceLevel(compliance)		#set current compliance
+        self.setTriggerSourceToTimer()			#use timer as trigger source
+        self.setTriggerTimerInterval(tstep)		#program the timer step
+        self.setTriggerCount(points)			#number of data points to collect
+        self.setTriggerAcquisitionDelay(tstep/10)
+        self.enableOutput(True)					#turn on output
+        self.initiate()							#begin measurement operation
+        while(self.busy()):      #polling loop, wait for operation completion
+            pass
+        self.enableOutput(False)					#disable source output
+        vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
+        ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
+        vmeas = float(vreply.split(','))		#split reply on commas and convert to floating point values
+        imeas = float(ireply.split(','))
+        return [vmeas, imeas]
 
 
 

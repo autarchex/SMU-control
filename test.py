@@ -22,8 +22,9 @@ else:
 if found:
     smu = B2901A(devicepath)
     smu.reset()
-	print("Trying a list sweep of voltages:" + str(voltage_list))
+
+    print("Trying a list sweep of voltages:" + str(voltage_list))
     [v,i] = smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
-	print("Measured voltages: " + str(v))
-	print("Measured currents: " + str(i))
+    print("Measured voltages: " + str(v))
+    print("Measured currents: " + str(i))
 	
