@@ -121,12 +121,9 @@ class B2901A(Instrument):
     def setVoltageModeToFixed(self):
         self.write(":SOURCE:VOLT:MODE FIX")
 
-    def setVoltageList(self,vsl):
+    def setVoltageList(self, vsl):
         """vsl is list of voltages for sweep"""
-        s = ""
-        for v in vsl:
-            s.append(str(v) + ",")  #create comma separated value string
-        s = s[:-1]      #remove final command
+        s = str(vsl).split(']')[0].split('[')[1]  #make string from list, remove brackets
         self.write(":LIST:VOLT " + s)
 
     def setCurrentComplianceLevel(self,a):
