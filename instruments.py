@@ -87,12 +87,19 @@ class B2901A(Instrument):
         self.expectedModel = "B2901A"
         #call superclass constructor, which connects and gathers some info
         super().__init__(device, self.description)
+        self.monitor()      #start monitoring for operation-complete
 
     def setSourceFunctionToVoltage(self):
         self.write(":FUNC:MODE VOLT")
 
     def setSourceFunctionToCurrent(self):
         self.write(":FUNC:MODE CURR")
+
+    def setSenseFunctionToCurrent(self):
+        self.write(":SENS:FUNC CURR")
+
+    def setSenseFunctionToVoltage(self):
+        self.write(":SENS:FUNC VOLT")
 
     def setVoltage(self,v):
         """Takes float argument."""
@@ -128,29 +135,35 @@ class B2901A(Instrument):
     def setVoltageProtectionLevel(self,v):
         self.write(":SENS:VOLT:PROT " + str(v))
 
-    def enableOutput(self,en=True):
+    def enableOutput(self, en=True):
         if en:
             self.write(":OUTP ON")
         else:
             self.write(":OUTP OFF")
 
-    def enableRemoteSensing(self,en=True):
+    def enableRemoteSensing(self, en=True):
         if en:
             self.write(":SENS:REM ON")
         else:
             self.write(":SENS:REM OFF")
 
-    def enableContinuousTrigger(self,en=True):
+    def enableContinuousTrigger(self, en=True):
         if en:
             self.write(":FUNC:TRIG:CONT ON")
         else:
             self.write(":FUNC:TRIG:CONT OFF")
 
-    def enableSourceVoltAutorange(self,en=True):
+    def enableSourceVoltAutorange(self, en=True):
         if en:
             self.write(":SOUR:VOLT:RANG:AUTO ON")
         else:
             self.write(":SOUR:VOLT:RANG:AUTO OFF")
+
+    def enableSenseCurrentAutorange(self, en=True):
+        if en:
+            self.write(":SENS:CURR:RANG:AUTO ON")
+        else:
+            self.write(":SENS:CURR:RANG:AUTO OFF")
 
     def measure(self):
         """Perform a spot measurement using current parameters, returns a float."""
@@ -185,6 +198,21 @@ class B2901A(Instrument):
 
     def setTriggerTimerInterval(self, interval):
         self.write("TRIG:TIMER " + str(interval))
+
+    def monitor(self):
+        """Begin monitoring OPC (operation complete) bit.  Must be called before
+        a call to busy() or busy() will not work.  Should be called by the
+        constructor."""
+        self.write("*OPC")
+        
+    def busy(self):
+        """Polls instrument once, and returns True if previous operations are
+        not yet complete. You must call monitor() at some point before this."""
+        opc = self.ask("*OPC?")     #operations complete?
+        if '1' in opc:
+            return False
+        else:
+            return True
 
 
 
