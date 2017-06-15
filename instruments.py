@@ -1,7 +1,8 @@
 import os
 
 """This module contains control classes for USB Test & Measurement Class
-(USBTMC) instruments and a simplistic interface to the kernal USBTMC driver."""
+(USBTMC) instruments and a simplistic interface to the kernal USBTMC driver.
+Use it however you like."""
 
 class usbtmc:
     """Simplistic USB-TMC (Test & Measurement Class) 'driver'.
