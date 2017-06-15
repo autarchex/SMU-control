@@ -89,17 +89,27 @@ class B2901A(Instrument):
         super().__init__(device, self.description)
         self.monitor()      #start monitoring for operation-complete
 
+    def monitor(self):
+        """Begin monitoring OPC (operation complete) bit.  Must be called before
+        a call to busy() or busy() will not work.  Should be called by the
+        constructor."""
+        self.write("*OPC")
+
+    def busy(self):
+        """Polls instrument once, and returns True if previous operations are
+        not yet complete. You must call monitor() at some point before this."""
+        opc = self.ask("*OPC?")     #operations complete?
+        if '1' in opc:
+            return False
+        else:
+            return True
+
+	#SOURCE control methods
     def setSourceFunctionToVoltage(self):
         self.write(":FUNC:MODE VOLT")
 
     def setSourceFunctionToCurrent(self):
         self.write(":FUNC:MODE CURR")
-
-    def setSenseFunctionToCurrent(self):
-        self.write(":SENS:FUNC CURR")
-
-    def setSenseFunctionToVoltage(self):
-        self.write(":SENS:FUNC VOLT")
 
     def setVoltage(self,v):
         """Takes float argument."""
@@ -126,24 +136,6 @@ class B2901A(Instrument):
         s = str(vsl).split(']')[0].split('[')[1]  #make string from list, remove brackets
         self.write(":LIST:VOLT " + s)
 
-    def setCurrentComplianceLevel(self,a):
-        self.write(":SENS:CURR:PROT " + str(a))
-
-    def setVoltageProtectionLevel(self,v):
-        self.write(":SENS:VOLT:PROT " + str(v))
-
-    def enableOutput(self, en=True):
-        if en:
-            self.write(":OUTP ON")
-        else:
-            self.write(":OUTP OFF")
-
-    def enableRemoteSensing(self, en=True):
-        if en:
-            self.write(":SENS:REM ON")
-        else:
-            self.write(":SENS:REM OFF")
-
     def enableContinuousTrigger(self, en=True):
         if en:
             self.write(":FUNC:TRIG:CONT ON")
@@ -156,20 +148,34 @@ class B2901A(Instrument):
         else:
             self.write(":SOUR:VOLT:RANG:AUTO OFF")
 
+	#SENSE control methods
+	#--------------------------
+    def setSenseFunctionToCurrent(self):
+        self.write(":SENS:FUNC CURR")
+
+    def setSenseFunctionToVoltage(self):
+        self.write(":SENS:FUNC VOLT")
+
+    def setCurrentComplianceLevel(self,a):
+        self.write(":SENS:CURR:PROT " + str(a))
+
+    def setVoltageProtectionLevel(self,v):
+        self.write(":SENS:VOLT:PROT " + str(v))
+
+    def enableRemoteSensing(self, en=True):
+        if en:
+            self.write(":SENS:REM ON")
+        else:
+            self.write(":SENS:REM OFF")
+
     def enableSenseCurrentAutorange(self, en=True):
         if en:
             self.write(":SENS:CURR:RANG:AUTO ON")
         else:
             self.write(":SENS:CURR:RANG:AUTO OFF")
 
-    def measure(self):
-        """Perform a spot measurement using current parameters, returns a float."""
-        return float(self.ask(":MEAS?"))
-
-    def initiate(self):
-        """Initiates a source/measure operation already set up"""
-        self.write(":INIT")
-
+	#TRIGGER control
+	#-------------------------
     def setTriggerAcquisitionDelay(self, delay):
         """set delay between trigger and acquisition"""
         self.write(":TRIG:ACQ:DEL " + str(delay))
@@ -196,20 +202,53 @@ class B2901A(Instrument):
     def setTriggerTimerInterval(self, interval):
         self.write("TRIG:TIMER " + str(interval))
 
-    def monitor(self):
-        """Begin monitoring OPC (operation complete) bit.  Must be called before
-        a call to busy() or busy() will not work.  Should be called by the
-        constructor."""
-        self.write("*OPC")
-        
-    def busy(self):
-        """Polls instrument once, and returns True if previous operations are
-        not yet complete. You must call monitor() at some point before this."""
-        opc = self.ask("*OPC?")     #operations complete?
-        if '1' in opc:
-            return False
+	#Other
+	#------------------------
+    def enableOutput(self, en=True):
+        if en:
+            self.write(":OUTP ON")
         else:
-            return True
+            self.write(":OUTP OFF")
+
+    def measure(self):
+        """Perform a spot measurement using current parameters, returns a float."""
+        return float(self.ask(":MEAS?"))
+
+    def initiate(self):
+        """Initiates a source/measure operation already set up"""
+        self.write(":INIT")
+
+	#Combination functions which make life easier
+	#--------------------------
+	def performVoltageListSweep(self, vlist, tstep, compliance=0.1):
+		"""Performs a list sweep, outputting voltage and measuring current.
+		vlist is a list of voltages. tstep is the time step (seconds).
+		compliance is current compliance limit (amps). Returns a list of two
+		lists: [voltages, currents]."""
+		points = len(vlist)
+		self.reset()
+	    self.setSourceFunctionToVoltage()		#output voltage
+	    self.enableSourceVoltAutorange(True)		#enable voltage autoranging
+	    self.setVoltageModeToList()				#using list sweep mode
+	    self.setVoltageList(vlist)				#load requested sweep list
+	    self.setSenseFunctionToCurrent()			#sensing current
+	    self.enableSenseCurrentAutorange(True)	#enable current autoranging
+	    self.setCurrentComplianceLevel(compliance)		#set current compliance
+	    self.setTriggerSourceToTimer()			#use timer as trigger source
+	    self.setTriggerTimerInterval(tstep)		#program the timer step
+	    self.setTriggerCount(points)			#number of data points to collect
+	    self.setTriggerAcquisitionDelay(tstep/10)
+
+	    self.enableOutput(True)					#turn on output
+	    self.initiate()							#begin measurement operation
+	    while(self.busy()):      #polling loop, wait for operation completion
+	        pass
+	    self.enableOutput(False)					#disable source output
+		vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
+	    ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
+		vmeas = float(vreply.split(','))		#split reply on commas and convert to floating point values
+		imeas = float(ireply.split(','))
+		return [vmeas, imeas]
 
 
 
