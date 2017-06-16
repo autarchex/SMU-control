@@ -1,4 +1,5 @@
 import os
+import time
 
 """This module contains control classes for USB Test & Measurement Class
 (USBTMC) instruments and a simplistic interface to the kernal USBTMC driver.
@@ -41,7 +42,8 @@ class usbtmc:
 
 
 class Instrument:
-    """Template class for generic instruments.  Other specific instruments in this module inherit from this."""
+    """Template class for generic instruments.  Other specific instruments in this module inherit from this.
+    Instruments should speak SCPI / be IEEE 488.2 compliant."""
     def __init__(self, device, description="USB TMC instrument"):
         print("Connecting to " + description + " at " + device)
         self.port = usbtmc(device)
@@ -70,11 +72,50 @@ class Instrument:
         self.write(command)
         return self.read(length)
 
+    #COMMON SCPI COMMANDS
     def identify(self):
         return self.ask("*IDN?", 300)
 
     def reset(self):
         self.write("*RST")
+
+    def clearStatus(self):
+        self.write("*CLS")
+
+    def wait(self):
+        """Issues a *WAI 'wait' command, which prohibits instrument from
+        executing new commands until all pending commands have completed.  Does
+        not block."""
+        self.write("*WAI")
+
+    def shortWaitForComplete(self):
+        """This is a BLOCKING wait for previous operations to complete.  It is
+        suitable for waiting on completion of reasonably short-duration (<2 sec)
+        operations.  Using this method to wait on longer operations WILL result
+        in a timeout error."""
+        self.ask("*OPC?")
+
+    def monitor(self):
+        """This should be called immediately after any operation which will
+        take a long time (>2 s) to complete.  It sets the OPC (operation complete)
+        bit in the status register.  Subsequent calls to busy() will check this
+        bit and use it to determine if the long operation has completed yet."""
+        self.write("*OPC")
+
+    def done(self):
+        """This is a NON-BLOCKING query that returns True if the instrument has
+        completed all previously assigned operations that were followed by a
+        call to monitor(), and False if it is still busy. This clears the ESR
+        register."""
+        print("Requesting ESR")
+        n = int(self.ask("*ESR?", 4))       #get status register
+        opcbit = n & 0x01                 #OPC bit is bit 0
+        print("OPC bit is: ", opcbit)
+        if opcbit == 1:                 #if operation is complete
+            return True
+        else:
+            return False
+
 
 
 class B2901A(Instrument):
@@ -88,24 +129,8 @@ class B2901A(Instrument):
         self.expectedModel = "B2901A"
         #call superclass constructor, which connects and gathers some info
         super().__init__(device, self.description)
-        #self.monitor()      #start monitoring for operation-complete state
 
-    def monitor(self):
-        """Begin monitoring OPC (operation complete) bit.  Must be called before
-        a call to busy() or busy() will not work.  Should be called by the
-        constructor."""
-        self.write("*OPC")
-
-    def busy(self):
-        """Polls instrument once, and returns True if previous operations are
-        not yet complete. You must call monitor() at some point before this."""
-        opc = self.ask("*OPC?")     #operations complete?
-        if '1' in opc:
-            return False
-        else:
-            return True
-
-	#SOURCE control methods
+    #SOURCE control methods
     def setSourceFunctionToVoltage(self):
         self.write(":FUNC:MODE VOLT")
 
@@ -149,8 +174,8 @@ class B2901A(Instrument):
         else:
             self.write(":SOUR:VOLT:RANG:AUTO OFF")
 
-	#SENSE control methods
-	#--------------------------
+    #SENSE control methods
+    #--------------------------
     def setSenseFunctionToCurrent(self):
         self.write(":SENS:FUNC CURR")
 
@@ -175,8 +200,8 @@ class B2901A(Instrument):
         else:
             self.write(":SENS:CURR:RANG:AUTO OFF")
 
-	#TRIGGER control
-	#-------------------------
+    #TRIGGER control
+    #-------------------------
     def setTriggerAcquisitionDelay(self, delay):
         """set delay between trigger and acquisition"""
         self.write(":TRIG:ACQ:DEL " + str(delay))
@@ -226,56 +251,62 @@ class B2901A(Instrument):
         vlist is a list of voltages. tstep is the time step (seconds).
         compliance is current compliance limit (amps). Returns a list of two
         lists: [voltages, currents]."""
+        print("Trying a list sweep of voltages:" + str(vlist))
         points = len(vlist)
         self.reset()
-        self.setSourceFunctionToVoltage()		#output voltage
-        self.enableSourceVoltAutorange(True)		#enable voltage autoranging
-        self.setVoltageModeToList()				#using list sweep mode
-        self.setVoltageList(vlist)				#load requested sweep list
-        self.setSenseFunctionToCurrent()			#sensing current
-        self.enableSenseCurrentAutorange(True)	#enable current autoranging
-        self.setCurrentComplianceLevel(compliance)		#set current compliance
-        self.setTriggerSourceToTimer()			#use timer as trigger source
-        self.setTriggerTimerInterval(tstep)		#program the timer step
-        self.setTriggerCount(points)			#number of data points to collect
+        self.setSourceFunctionToVoltage()        #output voltage
+        self.enableSourceVoltAutorange(True)        #enable voltage autoranging
+        self.setVoltageModeToList()                #using list sweep mode
+        self.setVoltageList(vlist)                #load requested sweep list
+        self.setSenseFunctionToCurrent()            #sensing current
+        self.enableSenseCurrentAutorange(True)    #enable current autoranging
+        self.setCurrentComplianceLevel(compliance)        #set current compliance
+        self.setTriggerSourceToTimer()            #use timer as trigger source
+        self.setTriggerTimerInterval(tstep)        #program the timer step
+        self.setTriggerCount(points)            #number of data points to collect
         self.setTriggerAcquisitionDelay(tstep/10)
-        self.enableOutput(True)					#turn on output
-        self.initiate()							#begin measurement operation
-        while(self.busy()):      #polling loop, wait for operation completion
-            pass
-        self.enableOutput(False)					#disable source output
+        self.enableOutput(True)                    #turn on output
+        self.monitor()
+        self.initiate()                            #begin measurement operation
+        i = 1
+        while(not self.done()):      #polling loop, wait for operation completion
+            print("Instrument busy. Iteration: " + str(i) + " x 100ms")
+            i = i + 1
+            time.sleep(0.1)
+        print("Instrument no longer busy.")
+        self.enableOutput(False)                    #disable source output
         vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
         ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
-        vmeas = [float(s) for s in vreply.split(',')]		#split reply on commas and convert to floating point values
+        vmeas = [float(s) for s in vreply.split(',')]        #split reply on commas and convert to floating point values
         imeas = [float(s) for s in ireply.split(',')]
         return [vmeas, imeas]
 
     def performConstVoltageMeasurement(self, v, points, tstep, compliance=0.1):
         """Performs a sequence of current measurements under constant voltage.
-	v is voltage to drive; points is number of points to acquire; tstep is
-	the time interval (seconds) between points; compliance is current
-	compliance limit (amps). Returns two lists: [voltages, currents]."""
+        v is voltage to drive; points is number of points to acquire; tstep is
+        the time interval (seconds) between points; compliance is current
+        compliance limit (amps). Returns two lists: [voltages, currents]."""
         self.reset()
-        self.setSourceFunctionToVoltage()		#output voltage
-        self.enableSourceVoltAutorange(True)		#enable voltage autoranging
-        self.setVoltageModeToFixed()				#using fixed output mode
-        self.setVoltage(v)							#set output voltage
-       	self.enableContinuousTrigger(True)			#continuous trigger the source, so it stays constant
-        self.setSenseFunctionToCurrent()			#sensing current
-        self.enableSenseCurrentAutorange(True)	#enable current autoranging
-        self.setCurrentComplianceLevel(compliance)		#set current compliance
-        self.setTriggerSourceToTimer()			#use timer as trigger source
-        self.setTriggerTimerInterval(tstep)		#program the timer step
-        self.setTriggerCount(points)			#number of data points to collect
+        self.setSourceFunctionToVoltage()        #output voltage
+        self.enableSourceVoltAutorange(True)        #enable voltage autoranging
+        self.setVoltageModeToFixed()                #using fixed output mode
+        self.setVoltage(v)                            #set output voltage
+        self.enableContinuousTrigger(True)            #continuous trigger the source, so it stays constant
+        self.setSenseFunctionToCurrent()            #sensing current
+        self.enableSenseCurrentAutorange(True)    #enable current autoranging
+        self.setCurrentComplianceLevel(compliance)        #set current compliance
+        self.setTriggerSourceToTimer()            #use timer as trigger source
+        self.setTriggerTimerInterval(tstep)        #program the timer step
+        self.setTriggerCount(points)            #number of data points to collect
         self.setTriggerAcquisitionDelay(tstep/10)
-        self.enableOutput(True)					#turn on output
-        self.initiate()							#begin measurement operation
+        self.enableOutput(True)                    #turn on output
+        self.initiate()                            #begin measurement operation
         while(self.busy()):      #polling loop, wait for operation completion
             pass
-        self.enableOutput(False)					#disable source output
+        self.enableOutput(False)                    #disable source output
         vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
         ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
-        vmeas = [float(s) for s in vreply.split(',')]		#split reply on commas and convert to floating point values
+        vmeas = [float(s) for s in vreply.split(',')]        #split reply on commas and convert to floating point values
         imeas = [float(s) for s in ireply.split(',')]
         return [vmeas, imeas]
 
