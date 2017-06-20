@@ -1,86 +1,91 @@
-import os
 import time
+import usbtmc
 
 """This module contains control classes for USB Test & Measurement Class
-(USBTMC) instruments and a simplistic interface to the kernal USBTMC driver.
-Use it however you like."""
+(USBTMC) instruments, using the python-ivi python-usbtmc driver."""
 
-class usbtmc:
-    """Simplistic USB-TMC (Test & Measurement Class) 'driver'.
-    Really, the kernel driver does all the real work.  The device needs to
-    have already enumerated as a USB-TMC device to the system, i.e., there is
-    a "/dev/usbtmc0" or similar entry present in /dev directory."""
-
-    def __init__(self, device):
-        """Argument 'device' (string) is path to an entry in /dev, typically /dev/usbtmc0 or /dev/usbtmc1"""
-        self.device = device
-        self.dfile = os.open(device, os.O_RDWR)
-
-    def close(self):
-        """closes the underlying file.  Not actually expected to be necessary."""
-        os.close(dfile)
-        self.dfile = ""
-
-    def read(self, length = 4000):
-        """Reads (text) from instrument.  Reads byte vector (file is binary),
-        decodes into a string, strips leading/trailing whitespace and terminal newline"""
-        return os.read(self.dfile, length).decode().strip()
-
-    def readb(self, length = 4000):
-        """reads without any conversion, so returns a byte vector."""
-        return os.read(self.dfile, length)
-
-    def write(self, command):
-        """Writes (text) to instrument. Adds a terminal newline and decodes to bytes,
-        because file is open as binary, then sends it"""
-        cmd = command + "\n"
-        os.write(self.dfile, cmd.encode());
-
-    def writeb(self, command):
-        """writes without any conversion, so sends a byte vector.  Will fail if given a string."""
-        os.write(self.dfile, command)
-
+def list_usbtmc_devices():
+    """List all attached USBTMC devices.  Now just calls function in driver."""
+    return usbtmc.list_devices()
 
 class Instrument:
-    """Template class for generic instruments.  Other specific instruments in this module inherit from this.
-    Instruments should speak SCPI / be IEEE 488.2 compliant."""
-    def __init__(self, device, description="USB TMC instrument"):
-        print("Connecting to " + description + " at " + device)
-        self.port = usbtmc(device)
-        print("Requesting device to identify...")
-        self.idn = self.identify()
-        print("Device replied: \"" + self.idn + "\"")
-        #extract manufacturer, model number, serial number, and revision number
-        self.mfr, self.model, self.sn, self.version = self.idn.split(",")
-        if self.expectedModel not in self.model:
-            print("Warning: device returned model \'" + self.model + "\', expected \'" + self.expectedModel + "\'")
+    """Template class for generic instruments.  Creates an instance of
+    usbtmc.Instrument class in upon connection. Other specific instruments
+    inherit from this.  Instruments must speak SCPI / USB488."""
+    def __init__(self):
+        self.description = "USB TMC instrument (generic)"
+        self.drv = ""
+        self.connected = False
+        self.mfr = ""               #manufacturer
+        self.model = ""             #model number
+        self.sn = ""                #serial number
+        self.version = ""           #revision number
+        self.expectedModel = ""     #expected model number
+        self.expectedMfr = ""       #expected manufacturer
+        self.VID = ""               #USB vendor ID code
+        self.PID = ""               #USB product ID code
 
-    def close(self):
-        print("Disconnecting from instrument.")
-        self.port.close()
+    def find(self):
+        """Find first attached instance of the instrument and return its
+        device ID in device reference form usable by connect()."""
+        if self.VID is None or self.PID is None:
+            print("Error: No VID/PID to find!")
+            return None
+        else:
+            dev = usbtmc.find_device(idVendor=self.VID, idProduct=self.PID)
+            if dev is None:
+                print("Error: Could not find instrument!")
+            return dev
+
+    def connect(self, device):
+        """Open connection to the instrument. Request instrument to identify,
+        populate mfr, model, serial, version numbers, and check that they match."""
+        if device is None:
+            print("Error: No device found, cannot connect.")
+            return
+        self.drv = usbtmc.Instrument(dev=device)    #create driver interface
+        self.drv.open()
+        self.connected = True
+        [self.mfr, self.model, self.sn, self.version] = self.identify().split(',')
+        if self.mfr != self.expectedMfr:
+            print("Warning: manufacturer mismatch. Received \'" + self.mfr + "\', expected \'" + self.expectedMfr + "\'")
+        if self.model != self.expectedModel:
+            print("Warning: model mismatch. Received \'" + self.model + "\', expected \'" + self.expectedModel + "\'")
+
+    def disconnect(self):
+        """Close connection with instrument."""
+        if not self.connected:
+            return
+        else:
+            self.drv.close()            #close the driver interface
+            self.drv = ""               #delete object reference
+            self.connected = False
 
     def write(self, command):
         """Write a command string to the instrument."""
-        self.port.write(command)
+        self.drv.write(command)
 
-    def read(self, length):
+    def read(self, length=-1):
         """Read data from the instrument."""
-        return self.port.read(length)
+        return self.drv.read(length)
 
-    def ask(self, command, length = 4000):
+    def ask(self, command, length=-1):
         """combined write-read for commands that end in '?', for convenience."""
-        self.write(command)
-        return self.read(length)
+        self.drv.write(command)
+        return self.drv.read(length)
 
     #COMMON SCPI COMMANDS
     def identify(self):
-        return self.ask("*IDN?", 300)
+        return self.ask("*IDN?")
 
     def reset(self):
         self.write("*RST")
 
     def clearStatus(self):
         self.write("*CLS")
+
+    def status(self):
+        return self.drv.read_stb()
 
     def wait(self):
         """Issues a *WAI 'wait' command, which prohibits instrument from
@@ -100,17 +105,17 @@ class Instrument:
         take a long time (>2 s) to complete.  It sets the OPC (operation complete)
         bit in the status register.  Subsequent calls to busy() will check this
         bit and use it to determine if the long operation has completed yet."""
-        self.write("*OPC")
+        self.write("*WAI;*OPC")
 
     def done(self):
         """This is a NON-BLOCKING query that returns True if the instrument has
         completed all previously assigned operations that were followed by a
         call to monitor(), and False if it is still busy. This clears the ESR
         register."""
-        print("Requesting ESR")
-        n = int(self.ask("*ESR?", 4))       #get status register
+        print("Requesting status byte")
+        n = int(self.status())       #get status register
         opcbit = n & 0x01                 #OPC bit is bit 0
-        print("OPC bit is: ", opcbit)
+        print("STB=" + str(n) + " and OPC bit is: ", opcbit)
         if opcbit == 1:                 #if operation is complete
             return True
         else:
@@ -123,12 +128,13 @@ class B2901A(Instrument):
     details of this instrument, refer to Keysight document B2910-90030, titled
     "Keysight B2900 SCPI Command Reference"."""
 
-    def __init__(self, device):
+    def __init__(self):
+        super().__init__()
         self.description = "Keysight B2901 SMU"
         self.expectedMfr = "Keysight Technologies"
         self.expectedModel = "B2901A"
-        #call superclass constructor, which connects and gathers some info
-        super().__init__(device, self.description)
+        self.VID = 0x0957
+        self.PID = 0x8b18
 
     #SOURCE control methods
     def setSourceFunctionToVoltage(self):
@@ -266,13 +272,13 @@ class B2901A(Instrument):
         self.setTriggerCount(points)            #number of data points to collect
         self.setTriggerAcquisitionDelay(tstep/10)
         self.enableOutput(True)                    #turn on output
-        self.monitor()
         self.initiate()                            #begin measurement operation
+        self.monitor()
         i = 1
-        while(not self.done()):      #polling loop, wait for operation completion
+        while(not self.done()):      #poll status byte, wait for operation completion
             print("Instrument busy. Iteration: " + str(i) + " x 100ms")
             i = i + 1
-            time.sleep(0.1)
+            time.sleep(1)
         print("Instrument no longer busy.")
         self.enableOutput(False)                    #disable source output
         vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
@@ -281,39 +287,13 @@ class B2901A(Instrument):
         imeas = [float(s) for s in ireply.split(',')]
         return [vmeas, imeas]
 
-    def performConstVoltageMeasurement(self, v, points, tstep, compliance=0.1):
-        """Performs a sequence of current measurements under constant voltage.
-        v is voltage to drive; points is number of points to acquire; tstep is
-        the time interval (seconds) between points; compliance is current
-        compliance limit (amps). Returns two lists: [voltages, currents]."""
-        self.reset()
-        self.setSourceFunctionToVoltage()        #output voltage
-        self.enableSourceVoltAutorange(True)        #enable voltage autoranging
-        self.setVoltageModeToFixed()                #using fixed output mode
-        self.setVoltage(v)                            #set output voltage
-        self.enableContinuousTrigger(True)            #continuous trigger the source, so it stays constant
-        self.setSenseFunctionToCurrent()            #sensing current
-        self.enableSenseCurrentAutorange(True)    #enable current autoranging
-        self.setCurrentComplianceLevel(compliance)        #set current compliance
-        self.setTriggerSourceToTimer()            #use timer as trigger source
-        self.setTriggerTimerInterval(tstep)        #program the timer step
-        self.setTriggerCount(points)            #number of data points to collect
-        self.setTriggerAcquisitionDelay(tstep/10)
-        self.enableOutput(True)                    #turn on output
-        self.initiate()                            #begin measurement operation
-        while(self.busy()):      #polling loop, wait for operation completion
-            pass
-        self.enableOutput(False)                    #disable source output
-        vreply = self.ask(":FETCH:ARR:VOLT?", (10*points))  #get measured voltages
-        ireply = self.ask(":FETCH:ARR:CURR?", (10*points))  #""current.  allocate 10 bytes per point in the response
-        vmeas = [float(s) for s in vreply.split(',')]        #split reply on commas and convert to floating point values
-        imeas = [float(s) for s in ireply.split(',')]
-        return [vmeas, imeas]
+
 
 class MSO2102A(Instrument):
     def __init__(self, device):
+        super().__init__()
         self.description = "Rigol MSO2102A Oscilloscope"
         self.expectedMfr = "RIGOL TECHNOLOGIES"
         self.expectedModel = "MSO2102A"
-        #call superclass constructor, which connects and gathers some info
-        super().__init__(device, self.description)
+        self.VID = 0x1ab1
+        self.PID = 0x04b0
