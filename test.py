@@ -1,23 +1,31 @@
-from instruments import B2901A, list_usbtmc_devices
+from instruments import B2901A
 from os import listdir
 
 """Test script to verify that I have communication with SMU working"""
 
-voltage_list = list(range(40))
+voltage_list = list(range(5))
 tstep = 1
 
-print("The following USBTMC devices were found:")
-print(list_usbtmc_devices())
+devices = listdir("/dev/")           #get listing of contents of /dev directory
+usbtmcdevices = list(s for s in devices if "usbtmc" in s)  #list all usbtmc* filenames in /dev
 
-smu = B2901A()
-dev = smu.find()
-if dev is None:
-    print("Could not find the SMU! Exiting...")
-    exit()
+if len(usbtmcdevices) > 0:
+    #print("Found:", usbtmcdevices)
+    #print("Selecting:", usbtmcdevices[0])
+    devicepath = "/dev/" + usbtmcdevices[0] #select first available match
+    found = True
 else:
-    smu.connect(dev)
+    print("No USB TMC devices found!")
+    devicepath = ""
+    found = False
 
-smu.reset()
-[v,i] = smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
-print("Measured voltages: " + str(v))
-print("Measured currents: " + str(i))
+if found:
+    smu = B2901A(devicepath)
+    smu.reset()
+    smu.pulse()
+    smu.pulse()
+    smu.pulse()
+
+    [v,i] = smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
+    print("Measured voltages: " + str(v))
+    print("Measured currents: " + str(i))

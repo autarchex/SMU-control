@@ -1,56 +1,7 @@
 # /etc/udev/rules.d/usbtmc.rules
 # place this file in the above location to add access permissions for USBTMC class devices
-# user needs to be member of 'usbtmc' group
-
-# USBTMC instruments
-
-# Agilent MSO7104A
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="1755", GROUP="usbtmc", MODE="0660"
-
-# Agilent MSO7104B
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="175d", GROUP="usbtmc", MODE="0660"
-
-# Agilent MSO-X 3014A
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="17a8", GROUP="usbtmc", MODE="0660"
-
-# Agilent DSA-X 96204Q
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="903c", GROUP="usbtmc", MODE="0660"
-
-# Agilent/Keysight U2001A
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="2b18", GROUP="usbtmc", MODE="0660"
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="2a8d", ATTRS{idProduct}=="2b18", GROUP="usbtmc", MODE="0660"
-
-# Agilent/Keysight U2002A
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="2c18", GROUP="usbtmc", MODE="0660"
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="2a8d", ATTRS{idProduct}=="2c18", GROUP="usbtmc", MODE="0660"
-
-# Agilent B2962A
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="9018", GROUP="usbtmc", MODE="0660"
-
-# Agilent/Keysight U2701A, U2702A
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="2818", GROUP="usbtmc", MODE="0660"
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="2918", GROUP="usbtmc", MODE="0660"
-
-# Agilent/Keysight U2722A, U2723A
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="4318", GROUP="usbtmc", MODE="0660"
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0957", ATTRS{idProduct}=="4418", GROUP="usbtmc", MODE="0660"
-
-# Tektronix MDO4104
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="0699", ATTRS{idProduct}=="040c", GROUP="usbtmc", MODE="0660"
-
-# Rigol MSO1104Z
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="1ab1", ATTRS{idProduct}=="04ce", GROUP="usbtmc", MODE="0660"
-
-# Rigol DS2000
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="1ab1", ATTRS{idProduct}=="04b0", GROUP="usbtmc", MODE="0660"
-
-# Rigol DS4000
-SUBSYSTEM=="usb", ACTION=="add", ATTRS{idVendor}=="1ab1", ATTRS{idProduct}=="04b1", GROUP="usbtmc", MODE="0660"
-
-# Kernel devices
-KERNEL=="usbtmc/*",       MODE="0660", GROUP="usbtmc"
-KERNEL=="usbtmc[0-9]*",   MODE="0660", GROUP="usbtmc"
+# user needs to be member of 'dialout' group
 
 # USB test and measurement class device rules
-#SUBSYSTEM=="usbmisc", KERNEL=="usbtmc[0-9]", GROUP=="dialout", MODE="0666"
+SUBSYSTEM=="usbmisc", KERNEL=="usbtmc[0-9]", GROUP=="dialout", MODE="0666"
 
