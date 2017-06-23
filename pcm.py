@@ -5,6 +5,7 @@
 
 import sys, argparse, logging
 from os import listdir
+from decimal import Decimal
 from instruments import B2901A      #instruments.py
 
 
@@ -26,26 +27,78 @@ def main(args, loglevel):
     smu.reset()
 
     lineNumber = 0
+    repeat = 0
+    timeVoltagePairs = []
     for line in args.infile.readlines():
         lineNumber = lineNumber + 1
-        values = ''.join(line.split()).split(',')    #remove whitespace, split on commas
-        if len(values) < 2:             #must have at least time and one voltage
-            if lineNumber == 1:
-                logging.info("Error: PCM input requires period and at least one value.")
-                logging.debug("Input values: " + str(values))
-                return
-            else:
-                logging.debug("Terminating on input line " + str(lineNumber) + ": insufficient input.")
-                logging.debug("Line " + str(lineNumber) + " values: " + str(values))
-                break
-
-        tstep = float(values[0])          #first value is timebase
-        logging.debug("Line " + str(lineNumber) + ": tstep= " + str(tstep))
-        voltage_list = [float(s) for s in values[1:]]  #others are voltages
-        logging.debug("Line " + str(lineNumber) + ": vlist= " + str(voltage_list))
-
-        smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
+        linevalues = line.split()    #remove whitespace, split on commas
+        if len(linevalues) < 2:             #must have at least two items
+            logging.debug("Skipped input line " + str(lineNumber) + ", insufficient input: " + str(linevalues))
+            continue
+        if 'R' in linevalues[0]:                    #look for R followed by a number
+            repeat = int(linevalues[1])             #this signifies a waveform repeat
+            logging.debug("Found repeat instruction, R= " + str(repeat) + " on line " + str(lineNumber))
+            continue
+        timeVoltagePairs.append([Decimal(linevalues[0]), Decimal(linevalues[1])])    #save pair
     logging.info("Processed " + str(lineNumber) + " lines of input.")
+
+    #Assemble waveform as list of voltages using one common timebase
+    tstep = findCommonTimeStep(timeVoltagePairs)    #find common timebase
+    logging.info("Using timebase of " + str(tstep) + " s.")
+    voltage_list = []
+    for [t,v] in timeVoltagePairs:
+        copies = int(t / tstep)     #should always be an even division
+        for n in range(copies):
+            voltage_list.append(v)  #duplicate v in list appropriate number or times for this timebase
+    logging.debug("voltage_list follows:")
+    logging.debug(str(voltage_list))
+
+    #Execute sweep on instrument once, then repeat correct number of times.
+    for n in range(repeat + 1):
+        smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
+
+def findCommonTimeStep(tv):
+    """Takes list of time,value Decimal pairs. Returns a time step which is the
+    largest time step that can be used to exactly represent all of the pairs in
+    the input list."""
+    import functools        #needed for reduce()
+    def gcd(a,b):           #greatest common denominator of 2 integers
+        while b:
+            a,b = b, a % b
+        return a
+    def lcm(a,b):           #least common multiple of two integers
+        return a * b // gcd(a,b)
+    def lcmm(arglist):      #least common multiple of a list of integers
+        return functools.reduce(lcm, arglist)
+    times = [t for [t,v] in tv]     #extract list of times
+    denominators = [t.as_integer_ratio()[1] for t in times]     #get integer representation denominator of each
+    logging.debug("Denominators: " + str(denominators))
+    lcm_denom = lcmm(denominators) #LCM of list of denominators
+    tstep = Decimal('1') / Decimal(lcm_denom)
+    return tstep
+
+
+    # lineNumber = 0
+    # for line in args.infile.readlines():
+    #     lineNumber = lineNumber + 1
+    #     values = ''.join(line.split()).split(',')    #remove whitespace, split on commas
+    #     if len(values) < 2:             #must have at least time and one voltage
+    #         if lineNumber == 1:
+    #             logging.info("Error: PCM input requires period and at least one value.")
+    #             logging.debug("Input values: " + str(values))
+    #             return
+    #         else:
+    #             logging.debug("Terminating on input line " + str(lineNumber) + ": insufficient input.")
+    #             logging.debug("Line " + str(lineNumber) + " values: " + str(values))
+    #             break
+    #
+    #     tstep = float(values[0])          #first value is timebase
+    #     logging.debug("Line " + str(lineNumber) + ": tstep= " + str(tstep))
+    #     voltage_list = [float(s) for s in values[1:]]  #others are voltages
+    #     logging.debug("Line " + str(lineNumber) + ": vlist= " + str(voltage_list))
+    #
+    #     smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
+    # logging.info("Processed " + str(lineNumber) + " lines of input.")
 
     smu.enableOutput(False)
 
@@ -55,10 +108,11 @@ def main(args, loglevel):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description = "Sends PCM data to a B2901A SMU.",
-        epilog = "Expected PCM file format is a comma-separated list of \
-                  numerical data in text format, terminated with a newline \
-                  character. The first value is the sample period, in seconds. \
-                  Subsequent values are output levels, in volts."
+        epilog = "Expected input format is a comma-separated or space-separated \
+                  list of symbol pairs, one pair per line.  If the first symbol \
+                  is a number, it is a time in seconds and the second symbol is \
+                  a voltage.  If the first symbol is 'R', the second symbol is \
+                  a number of repetitions to apply to the waveform. "
         )
     # TODO Specify your real parameters here.
     parser.add_argument( "infile",

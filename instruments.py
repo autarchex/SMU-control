@@ -219,9 +219,13 @@ class B2901A(Instrument):
         self.write(":SOURCE:VOLT:MODE FIX")
 
     def setVoltageList(self, vsl):
-        """vsl is list of voltages for sweep"""
-        s = str(vsl).split(']')[0].split('[')[1]  #make string from list, remove brackets
-        self.write(":LIST:VOLT " + s)
+        """vsl is list of voltages for sweep.  May be text, Decimal, or float."""
+        fvsl = [float(v) for v in vsl]      #convert to float
+        s = ""
+        for f in fvsl[:-1]:         #all but last item
+            s = s +str(f) + ","
+        s = s + str(fvsl[-1])      #add last item without a comma
+        self.write(":LIST:VOLT " + s)  #don't send the last character, a comma
 
     def enableContinuousTrigger(self, en=True):
         if en:
