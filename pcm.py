@@ -12,34 +12,43 @@ from instruments import B2901A      #instruments.py
 def main(args, loglevel):
     logging.basicConfig(format="%(levelname)s: %(message)s", level=loglevel)
 
-    line = args.infile.readline()       #read one line of input
-    values = ''.join(line.split()).split(',')    #remove whitespace, split on commas
-    if len(values) < 2:                 #must have at least time and one voltage
-        logging.info("Error: PCM input requires period and at least one value.")
-        logging.debug("Input values: ", values)
-        return
-    tstep = float(values[0])          #first value is timebase
-    logging.debug("tstep is ", tstep)
-    voltage_list = [float(s) for s in values[1:]]  #others are voltages
-    logging.debug("voltage list is ", voltage_list)
-
     devices = listdir("/dev/")           #get listing of contents of /dev directory
     usbtmcdevices = list(s for s in devices if "usbtmc" in s)  #list all usbtmc* filenames in /dev
 
     if len(usbtmcdevices) < 1:
         logging.info("No USB TMC devices found; exiting.")
         return
-
-    logging.debug("Found:", usbtmcdevices)
-    logging.debug("Selecting:", usbtmcdevices[0])
-
+    logging.debug("Found:" + str(usbtmcdevices))
     devicepath = "/dev/" + usbtmcdevices[0] #select first available match
+    logging.debug("Selecting:" + str(devicepath))
 
     smu = B2901A(devicepath)
     smu.reset()
-    smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
-    #print("Measured voltages: " + str(v))
-    #print("Measured currents: " + str(i))
+
+    lineNumber = 0
+    for line in args.infile.readlines():
+        lineNumber = lineNumber + 1
+        values = ''.join(line.split()).split(',')    #remove whitespace, split on commas
+        if len(values) < 2:             #must have at least time and one voltage
+            if lineNumber == 1:
+                logging.info("Error: PCM input requires period and at least one value.")
+                logging.debug("Input values: " + str(values))
+                return
+            else:
+                logging.debug("Terminating on input line " + str(lineNumber) + ": insufficient input.")
+                logging.debug("Line " + str(lineNumber) + " values: " + str(values))
+                break
+
+        tstep = float(values[0])          #first value is timebase
+        logging.debug("Line " + str(lineNumber) + ": tstep= " + str(tstep))
+        voltage_list = [float(s) for s in values[1:]]  #others are voltages
+        logging.debug("Line " + str(lineNumber) + ": vlist= " + str(voltage_list))
+
+        smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
+    logging.info("Processed " + str(lineNumber) + " lines of input.")
+
+    smu.enableOutput(False)
+
 
 
 # Process arguments on command line and execute main()

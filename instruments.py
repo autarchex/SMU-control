@@ -313,7 +313,6 @@ class B2901A(Instrument):
         compliance is current compliance limit (amps). Returns a list of two
         lists: [voltages, currents]."""
         points = len(vlist)
-        self.reset()
         self.setSourceFunctionToVoltage()        #output voltage
         self.enableSourceVoltAutorange(True)        #enable voltage autoranging
         self.setVoltageModeToList()                #using list sweep mode
@@ -328,31 +327,10 @@ class B2901A(Instrument):
         self.enableOutput(True)                    #turn on output
         self.initiate()                            #begin measurement operation
         self.monitor()
-        self.enableOutput(False)
 
 
-    def performConstVoltageMeasurement(self, v, points, tstep, compliance=0.1):
-        """Performs a sequence of current measurements under constant voltage.
-        v is voltage to drive; points is number of points to acquire; tstep is
-        the time interval (seconds) between points; compliance is current
-        compliance limit (amps). Returns two lists: [voltages, currents]."""
-        self.reset()
-        self.setSourceFunctionToVoltage()        #output voltage
-        self.enableSourceVoltAutorange(True)        #enable voltage autoranging
-        self.setVoltageModeToFixed()                #using fixed output mode
-        self.setVoltage(v)                            #set output voltage
-        self.enableContinuousTrigger(True)            #continuous trigger the source, so it stays constant
-        self.setSenseFunctionToCurrent()            #sensing current
-        self.enableSenseCurrentAutorange(True)    #enable current autoranging
-        self.setCurrentComplianceLevel(compliance)        #set current compliance
-        self.setTriggerSourceToTimer()            #use timer as trigger source
-        self.setTriggerTimerInterval(tstep)        #program the timer step
-        self.setTriggerCount(points)            #number of data points to collect
-        self.setTriggerAcquisitionDelay(tstep/10)
-        self.enableOutput(True)                    #turn on output
-        self.initiate()                            #begin measurement operation
-        self.monitor()
-        self.enableOutput(False)                    #disable source output
+
+
 
 
 class MSO2102A(Instrument):
