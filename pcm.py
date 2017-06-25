@@ -57,6 +57,9 @@ def main(args, loglevel):
     for n in range(repeat + 1):
         smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
 
+    smu.enableOutput(False)
+
+
 def findCommonTimeStep(tv):
     """Takes list of time,value Decimal pairs. Returns a time step which is the
     largest time step that can be used to exactly represent all of the pairs in
@@ -78,29 +81,8 @@ def findCommonTimeStep(tv):
     return tstep
 
 
-    # lineNumber = 0
-    # for line in args.infile.readlines():
-    #     lineNumber = lineNumber + 1
-    #     values = ''.join(line.split()).split(',')    #remove whitespace, split on commas
-    #     if len(values) < 2:             #must have at least time and one voltage
-    #         if lineNumber == 1:
-    #             logging.info("Error: PCM input requires period and at least one value.")
-    #             logging.debug("Input values: " + str(values))
-    #             return
-    #         else:
-    #             logging.debug("Terminating on input line " + str(lineNumber) + ": insufficient input.")
-    #             logging.debug("Line " + str(lineNumber) + " values: " + str(values))
-    #             break
-    #
-    #     tstep = float(values[0])          #first value is timebase
-    #     logging.debug("Line " + str(lineNumber) + ": tstep= " + str(tstep))
-    #     voltage_list = [float(s) for s in values[1:]]  #others are voltages
-    #     logging.debug("Line " + str(lineNumber) + ": vlist= " + str(voltage_list))
-    #
-    #     smu.performVoltageListSweep(voltage_list, tstep, compliance=0.1)
-    # logging.info("Processed " + str(lineNumber) + " lines of input.")
 
-    smu.enableOutput(False)
+
 
 
 
