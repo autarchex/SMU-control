@@ -307,7 +307,7 @@ class B2901A(Instrument):
 
     def initiate(self):
         """Initiates a source/measure operation already set up"""
-        self.write(":INIT")
+        self.write(":INIT;*WAI;*OPC")
 
     #Combination functions which make life easier
     #--------------------------
@@ -330,7 +330,7 @@ class B2901A(Instrument):
         self.setTriggerAcquisitionDelay(tstep/10)
         self.enableOutput(True)                    #turn on output
         self.initiate()                            #begin measurement operation
-        self.monitor()
+
 
 
 
