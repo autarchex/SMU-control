@@ -328,12 +328,7 @@ class B2901A(Instrument):
         self.setTriggerTimerInterval(tstep)        #program the timer step
         self.setTriggerCount(points)            #number of data points to collect
         self.setTriggerAcquisitionDelay(tstep/10)
-        self.enableOutput(True)                    #turn on output
         self.initiate()                            #begin measurement operation
-
-
-
-
 
 
 

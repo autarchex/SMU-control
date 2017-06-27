@@ -16,19 +16,26 @@ def main(args, loglevel):
 
     devices = listdir("/dev/")                                 #get listing of contents of /dev directory
     usbtmcdevices = list(s for s in devices if "usbtmc" in s)  #list all usbtmc* filenames in /dev
-
-    if len(usbtmcdevices) < 1:
+    if args.mock:
+        logging.info("Using MOCK device!")
+    if not args.mock and len(usbtmcdevices) < 1:
         logging.info("No USB TMC devices found; exiting.")
         return
     logging.debug("Found:" + str(usbtmcdevices))
-    devicepath = "/dev/" + usbtmcdevices[0]                     #select first available match
+    if not args.mock:
+        dev = usbtmcdevices[0]
+    else:
+        dev = ""
+    devicepath = "/dev/" + dev                                  #select first available match
     logging.debug("Selecting:" + str(devicepath))
 
-    smu = B2901A(devicepath)
-    smu.reset()
+    if not args.mock:
+        smu = B2901A(devicepath)
+        smu.reset()
 
     waveforms = []                                              #stores waveforms
-    currentWaveform = ''
+    currentWaveform = Waveform(999)
+    waveforms.append(currentWaveform)
     defining = False                                            #are we currently defining a waveform?
 
     #Step through the input file looking only for waveform definitions, process them.
@@ -38,6 +45,8 @@ def main(args, loglevel):
     for line in args.infile.readlines():
         ln = ln + 1
         linevalues = line.split()                               #remove and split on whitespace
+        if len(linevalues) < 1:                                 #blank line?
+            continue
         if len(linevalues) < 2:
             if linevalues[0] == 'END':
                 defining = False                                #done with current waveform
@@ -53,13 +62,13 @@ def main(args, loglevel):
                 waveforms.append(currentWaveform)
                 defining = True
             continue
-        if is_number(linevalues[0] and is_number(linevalues[1]):    #a point entry
+        if is_number(linevalues[0]) and is_number(linevalues[1]):    #a point entry
             t = Decimal(linevalues[0])
             v = Decimal(linevalues[1])
             currentWaveform.addPoint(t,v)
             continue
 
-    logging.info("Processed " + str(lineNumber) + " lines of input.")
+    logging.info("Processed " + str(ln) + " lines of input.")
     logging.info("Defined " + str(len(waveforms)) + " waveforms.")
 
 
@@ -69,6 +78,8 @@ def main(args, loglevel):
     for line in args.infile.readlines():
         ln = ln + 1
         linevalues = line.split()                               #remove and split on whitespace
+        if len(ln) < 1:                                         #blank line?
+            continue
         if len(linevalues) < 2:                                 #there are no single-symbol operations
             continue
         if is_number(linevalues[0]):                            #operations bigin with a word, not numbers
@@ -77,6 +88,8 @@ def main(args, loglevel):
         if op == 'D' or op == 'DEF':                            #ignore the DEFine waveform command, already Done
             continue
         if op == 'OUT' or 'out':                                #output control
+            if args.mock:
+                continue
             if linevalues[1] == 'ON' or linevalues[1] == 'on':
                 smu.enableOutput(True)
             elif linevalues[1] == 'OFF' or linevalues[1] == 'off':
@@ -98,10 +111,12 @@ def main(args, loglevel):
                 logging.info("Error: requested play of waveform " + str(idnum) + " but waveform not found!")
                 continue
             logging.info("Executing sweep 1 of " + str(plays) + "of waveform " + str(idnum))
-            smu.performVoltageListSweep(wf.vlist, wf.tstep, compliance=0.1)
+            if not args.mock:
+                smu.performVoltageListSweep(wf.vlist, wf.tstep, compliance=0.1)
             for n in range(plays-1):
                 logging.info("Executing sweep " + str(n+2) + " of " + str(plays) + "of waveform " + str(idnum))
-                smu.initiate()
+                if not args.mock:
+                    smu.initiate()
     logging.info("Done.")
 
 
@@ -127,12 +142,12 @@ class Waveform:
         self.tstep = self.findCommonTimeStep(self.points)       #calculate new timebase
         vlist = []
         for [t,v] in self.points:
-            copies = t // self.tstep                            #number of repetitions needed
+            copies = int(t / self.tstep)                            #number of repetitions needed
             for n in range(copies):
                 vlist.append(v)                                 #add that number of copies of voltage
         self.vlist = vlist                                      #save result
 
-    def findCommonTimeStep(tv):
+    def findCommonTimeStep(self, tv):
         """Takes list of time,value Decimal pairs. Returns a time step which is the
         largest time step that can be used to exactly represent all of the pairs in
         the input list."""
@@ -173,6 +188,11 @@ if __name__ == '__main__':
     parser.add_argument( "--verbose", "-v",
         help="increase output verbosity",
         action="store_true")
+
+    parser.add_argument( "--mock", "-m",
+        help="Use mock instrument. Note: does not reply to requests!",
+        action="store_true")
+
     args = parser.parse_args()
 
     # Setup logging
