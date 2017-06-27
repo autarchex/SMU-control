@@ -5,6 +5,7 @@
 #REQUIRES Python 3.6 or later
 
 import sys, argparse, logging
+import time
 from os import listdir
 from decimal import Decimal
 from instruments import B2901A      #instruments.py
@@ -17,107 +18,115 @@ def main(args, loglevel):
     devices = listdir("/dev/")                                 #get listing of contents of /dev directory
     usbtmcdevices = list(s for s in devices if "usbtmc" in s)  #list all usbtmc* filenames in /dev
     if args.mock:
-        logging.info("Using MOCK device!")
+        print("Using MOCK device!")
     if not args.mock and len(usbtmcdevices) < 1:
-        logging.info("No USB TMC devices found; exiting.")
+        print("No USB TMC devices found; exiting.")
         return
     logging.debug("Found:" + str(usbtmcdevices))
-    if not args.mock:
-        dev = usbtmcdevices[0]
-    else:
+    if args.mock:
         dev = ""
+    else:
+        dev = usbtmcdevices[0]
     devicepath = "/dev/" + dev                                  #select first available match
     logging.debug("Selecting:" + str(devicepath))
 
-    if not args.mock:
-        smu = B2901A(devicepath)
-        smu.reset()
+    smu = B2901A(devicepath, mock=args.mock)                    #connect to SMU and reset it
+    smu.reset()
 
-    waveforms = []                                              #stores waveforms
-    currentWaveform = Waveform(999)
-    waveforms.append(currentWaveform)
-    defining = False                                            #are we currently defining a waveform?
-
-    #Step through the input file looking only for waveform definitions, process them.
-    #Definitions start with a line "DEF n", n being waveform number; consist of lines of t,v pairs;
-    #they end with END.
-    ln = 0                                                      #line number
+    #Parse input file line by line.
+    #DEF n opens a new waveform n.  OUT <ON/OFF> controls output state.
+    #W n m plays waveform #n, m times.  A pair of numbers on a line is interpreted
+    #as [time, voltage] and added to the currently open waveform.
+    waveforms = {}                                                                  #stores waveforms
+    currentWaveform = 0
+    waveforms[currentWaveform] = Waveform(currentWaveform)                          #create first waveform and store it
+    replay = []                                                                     #tracks play operations previously performed
+    ln = 0                                                                          #line number
+    print("---------------------------")
     for line in args.infile.readlines():
         ln = ln + 1
-        linevalues = line.split()                               #remove and split on whitespace
-        if len(linevalues) < 1:                                 #blank line?
+        tokens = line.split()                                                       #split on whitespace
+        if len(tokens) < 2:                                                         #skip blank lines and single-symbols
+            logging.debug("Skipped input line " + str(ln) + ", insufficient input: " + str(tokens))
             continue
-        if len(linevalues) < 2:
-            if linevalues[0] == 'END':
-                defining = False                                #done with current waveform
-            else:
-                logging.debug("Skipped input line " + str(lineNumber) + ", insufficient input: " + str(linevalues))
-            continue
-        if linevalues[0] == 'D' or linevalues[0] == 'DEF':      #a waveform definition start
-            if linevalues[1] is None:
-                logging.debug("Error - waveform definition without ID on line " + str(ln))
-            else:
-                idnum = linevalues[1]
-                currentWaveform = Waveform(idnum)
-                waveforms.append(currentWaveform)
-                defining = True
-            continue
-        if is_number(linevalues[0]) and is_number(linevalues[1]):    #a point entry
-            t = Decimal(linevalues[0])
-            v = Decimal(linevalues[1])
-            currentWaveform.addPoint(t,v)
-            continue
-
-    logging.info("Processed " + str(ln) + " lines of input.")
-    logging.info("Defined " + str(len(waveforms)) + " waveforms.")
-
-
-    #Step through input file ignoring waveform definitions, process operations.
-    #Operations include "W n m", which plays waveform n m times; "OUT <ON/OFF>" which enables/disables output.
-    ln = 0                                                      #line number
-    for line in args.infile.readlines():
-        ln = ln + 1
-        linevalues = line.split()                               #remove and split on whitespace
-        if len(ln) < 1:                                         #blank line?
-            continue
-        if len(linevalues) < 2:                                 #there are no single-symbol operations
-            continue
-        if is_number(linevalues[0]):                            #operations bigin with a word, not numbers
-            continue
-        op = linevalues[0]
-        if op == 'D' or op == 'DEF':                            #ignore the DEFine waveform command, already Done
-            continue
-        if op == 'OUT' or 'out':                                #output control
-            if args.mock:
+        if is_number(tokens[0]):                                                    #waveform data?
+            if not is_number(tokens[1]):                                            #second parameter isn't a number also
+                print("Error - non-numeric data on line " + str(ln))
                 continue
-            if linevalues[1] == 'ON' or linevalues[1] == 'on':
-                smu.enableOutput(True)
-            elif linevalues[1] == 'OFF' or linevalues[1] == 'off':
-                smu.enableOutput(False)
-            continue
-        if op == 'W' or 'w':                                    #waveform play command
-            idnum = linevalues[1]
-            plays = 1
-            if len(linevalues) > 2:                             #additional argument?
-                if is_number(linevalues[2]):                    #AND it is a number?
-                    plays = int(linevalues[2])                  #it is number of iterations
+            t = Decimal(tokens[0])                                                  #import as Decimal to preserve precision
+            v = Decimal(tokens[1])
+            waveforms[currentWaveform].addPoint(t,v)                                #add datapoint to the currently open waveform
+
+        else:                                                                       #not waveform data, must be an operation
+            op = tokens[0]
+            if op == 'D' or op == 'DEF':                                            #Define-waveform operation
+                if not is_number(tokens[1]):                                        #Can't process a DEF with no ID number
+                    print("Error - waveform definition without ID on line " + str(ln))
+                    continue
+                idnum = int(tokens[1])
+                if idnum < 0:
+                    print("Error - waveform definition with negative ID on line " + str(ln))
+                    continue
+                waveforms[idnum] = Waveform(idnum)                                  #create and store a new waveform object
+                currentWaveform = idnum                                             #remember its location
+                logging.debug("Defined waveform " + str(idnum))
+                continue
+
+            if op == 'OUT' or op == 'out':                                          #output control
+                if tokens[1] == 'ON' or tokens[1] == 'on':
+                    smu.enableOutput(True)
+                elif tokens[1] == 'OFF' or tokens[1] == 'off':
+                    smu.enableOutput(False)
+                continue
+
+            if op == 'W' or op == 'w':                                              #waveform play command
+                if not is_number(tokens[1]):                                        #missing or non-numeric id number?
+                    print("Error - waveform operation missing ID on line " + str(ln))
+                    continue
+                idnum = int(tokens[1])
+                if idnum < 0 or idnum not in waveforms.keys():
+                    print("Error - waveform requested does not exist, on line " + str(ln))
+                    continue
+                wf = waveforms[idnum]                                               #select the waveform to play
+                plays = 1
+                if len(tokens) > 2 and is_number(tokens[2]):                        #additional parameter present?
+                    plays = int(tokens[2])                                          #it is number of iterations
                     if plays < 1:
                         plays = 1
-            wf = None
-            for w in waveforms:
-                if w.id == idnum:                               #find correct waveform
-                    wf = w
-            if wf is None:                                      #failed to find it!
-                logging.info("Error: requested play of waveform " + str(idnum) + " but waveform not found!")
+                playWaveform(wf, smu, iterations=plays)
+                replay.append(['W',wf,plays])                                       #save a record for possible replay later
                 continue
-            logging.info("Executing sweep 1 of " + str(plays) + "of waveform " + str(idnum))
-            if not args.mock:
-                smu.performVoltageListSweep(wf.vlist, wf.tstep, compliance=0.1)
-            for n in range(plays-1):
-                logging.info("Executing sweep " + str(n+2) + " of " + str(plays) + "of waveform " + str(idnum))
-                if not args.mock:
-                    smu.initiate()
-    logging.info("Done.")
+
+            if op == 'R' or op == 'r':                                              #replay command
+                if not is_number(tokens[1]) or int(tokens[1]) < 1:                  #parameter is number of iterations
+                    print("Error - unusable replay count found on line " + str(ln))
+                    continue
+                repeats = int(tokens[1])
+                print("---------------------------")
+                print("Found REPLAY on line " + str(ln) + "; replaying " + str(len(replay)) + " operations, " + str(repeats) + " times.")
+                for n in range(repeats):
+                    for r in replay:
+                        if r[0] == 'W':                                             #entry describes a waveform play operation
+                            wf = r[1]
+                            iterations = r[2]
+                            playWaveform(wf, smu, iterations)                       #replay the waveform
+                    print("---------------------------")
+                for n in range(repeats):
+                    replay.extend(replay)                                           #record the replay operation itself for possible replay later
+
+    print("Processed " + str(ln) + " input lines.")
+
+    # END
+
+def playWaveform(wf, smu, iterations=1):
+    """Play a waveform one or more times."""
+    smu.prepareVoltageListSweep(wf.vlist, wf.tstep, compliance=0.1)                 #prepare SMU for list sweep
+    print("Loaded waveform " + str(wf.id) + "; queuing " + str(iterations) + " sweeps.")
+    for n in range(iterations):
+        smu.initiate()                                                              #execute sweep on instrument
+    playtime = float(wf.duration) * iterations * 0.99                               #estimate total sweep duration, minus a hair
+    print("Waiting " + str(playtime) + " seconds.")
+    time.sleep(playtime)
 
 
 def is_number(s):
@@ -134,6 +143,7 @@ class Waveform:
         self.id = num
         self.points = []
         self.vlist = []
+        self.duration = 0
         pass
 
     def addPoint(self, time, voltage):
@@ -142,10 +152,11 @@ class Waveform:
         self.tstep = self.findCommonTimeStep(self.points)       #calculate new timebase
         vlist = []
         for [t,v] in self.points:
-            copies = int(t / self.tstep)                            #number of repetitions needed
+            copies = int(t / self.tstep)                        #number of repetitions needed
             for n in range(copies):
                 vlist.append(v)                                 #add that number of copies of voltage
         self.vlist = vlist                                      #save result
+        self.duration = len(self.vlist) * self.tstep            #calculate total play time
 
     def findCommonTimeStep(self, tv):
         """Takes list of time,value Decimal pairs. Returns a time step which is the

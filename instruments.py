@@ -1,6 +1,6 @@
 import os
 import fcntl
-import time
+
 #These modules from https://github.com/olavmrk/python-ioctl
 #import ioctl
 #import ioctl.linux
@@ -57,14 +57,19 @@ class Instrument:
     to the system, i.e., should be a "/dev/usbtmc0" or similar present in /dev.
     Other specific instruments in this module inherit from this class.
     Instruments should speak SCPI / be IEEE 488.2 compliant."""
-    def __init__(self, devicepath, description="USB TMC instrument"):
+    def __init__(self, devicepath, description="USB TMC instrument", mock=False):
         """Argument 'device' (string) is path to /dev entry, typically /dev/usbtmc0 or /dev/usbtmc1"""
+        self.mock = mock
         self.devicepath = devicepath
-        self.fd = os.open(devicepath, os.O_RDWR)
-        self.ioc = ioc()        #helper object for ioctl constant calculations
+        if not self.mock:
+            self.fd = os.open(devicepath, os.O_RDWR)                                #open device file
+        self.ioc = ioc()                                                            #helper object for ioctl constant calculations
         print("Connecting to " + description + " at " + devicepath)
         print("Requesting device to identify...")
-        self.idn = self.identify()
+        if self.mock:
+            self.idn = "mock,mock,mock,mock"
+        else:
+            self.idn = self.identify()
         print("Device replied: \"" + self.idn + "\"")
         #extract manufacturer, model number, serial number, and revision number
         self.mfr, self.model, self.sn, self.version = self.idn.split(",")
@@ -75,21 +80,27 @@ class Instrument:
     def read(self, length=4000):
         """Reads (text) from instrument.  Reads byte vector (file is binary),
         decodes into a string, strips leading/trailing whitespace and terminal newline"""
-        return os.read(self.fd, length).decode().strip()
+        return self.readb().decode().strip()
 
     def readb(self, length=4000):
         """reads without any conversion, so returns a byte vector."""
-        return os.read(self.fd, length)
+        if self.mock:
+            return "mock mock mock\n".encode()
+        else:
+            return os.read(self.fd, length)
 
     def write(self, command):
         """Writes (text) to instrument. Adds a terminal newline and decodes to bytes,
         because file is open as binary, then sends it"""
         cmd = command + "\n"
-        os.write(self.fd, cmd.encode());
+        self.writeb(cmd.encode())
 
     def writeb(self, command):
         """writes without any conversion, so sends a byte vector.  Will fail if given a string."""
-        os.write(self.fd, command)
+        if self.mock:
+            return
+        else:
+            os.write(self.fd, command)
 
     def ask(self, command, length=4000):
         """combined write-read for commands that end in '?', for convenience."""
@@ -178,14 +189,14 @@ class B2901A(Instrument):
     details of this instrument, refer to Keysight document B2910-90030, titled
     "Keysight B2900 SCPI Command Reference"."""
 
-    def __init__(self, device):
+    def __init__(self, device, mock=False):
         self.description = "Keysight B2901 SMU"
         self.expectedMfr = "Keysight Technologies"
         self.expectedModel = "B2901A"
         self.VID = 0x0957
         self.PID = 0x8b18
         #call superclass constructor, which connects and gathers some info
-        super().__init__(device, self.description)
+        super().__init__(device, description=self.description, mock=mock)
         #instrument-specific additional setup
         self.write("*ESE 1")    #enable summary of bit 0, Event Status register, to enable *OPC monitoring
         self.write("*SRE 32")   #enable summary of bit 5, Status Byte, to enable *OPC monitoring
@@ -311,11 +322,11 @@ class B2901A(Instrument):
 
     #Combination functions which make life easier
     #--------------------------
-    def performVoltageListSweep(self, vlist, tstep, compliance=0.1):
-        """Performs a list sweep, outputting voltage and measuring current.
+    def prepareVoltageListSweep(self, vlist, tstep, compliance=0.1):
+        """Prepares a list sweep, outputting voltage and measuring current.
         vlist is a list of voltages. tstep is the time step (seconds).
-        compliance is current compliance limit (amps). Returns a list of two
-        lists: [voltages, currents]."""
+        compliance is current compliance limit (amps). Sweep can be executed
+        by calling initiate() afterward."""
         points = len(vlist)
         self.setSourceFunctionToVoltage()        #output voltage
         self.enableSourceVoltAutorange(True)        #enable voltage autoranging
@@ -328,7 +339,7 @@ class B2901A(Instrument):
         self.setTriggerTimerInterval(tstep)        #program the timer step
         self.setTriggerCount(points)            #number of data points to collect
         self.setTriggerAcquisitionDelay(tstep/10)
-        self.initiate()                            #begin measurement operation
+
 
 
 
