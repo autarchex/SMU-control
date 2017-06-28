@@ -1,0 +1,22 @@
+#FIX_2009.
+#This waveform from my notes circa 2009.  Intended to break up pigment clusters to repair "half-moon stuck pixels."
+
+DEF 0
+1 0	#1 second at 0 volts
+1 40	#1 second at 40 volts
+1 -40
+1.2 30
+1.2 -30
+1.3 20
+1.3 -20
+1.5 10
+1.5 -10
+1.6 5
+1.4 -5
+1.7 2
+1 -1
+2 0
+
+W 0 1	#Play waveform 0 one time
+R 10	#Repeat 10 times
+
