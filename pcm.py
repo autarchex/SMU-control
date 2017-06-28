@@ -49,6 +49,8 @@ def main(args, loglevel):
         if len(tokens) < 2:                                                         #skip blank lines and single-symbols
             logging.debug("Skipped input line " + str(ln) + ", insufficient input: " + str(tokens))
             continue
+        if tokens[0][0] == '#' or tokens[1][0] == '#':                                                     #skip comments
+            continue
         if is_number(tokens[0]):                                                    #waveform data?
             if not is_number(tokens[1]):                                            #second parameter isn't a number also
                 print("Error - non-numeric data on line " + str(ln))
